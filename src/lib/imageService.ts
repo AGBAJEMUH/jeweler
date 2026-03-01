@@ -29,7 +29,7 @@ export async function processStyledImage(
 
             // 2. Build Photoroom API request
             const formData = new FormData();
-            formData.append('imageFile', new Blob([imageBuffer as any], { type: 'image/jpeg' }), 'product.jpg');
+            formData.append('imageFile', new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' }), 'product.jpg');
 
             const prompt = `Luxury jewelry display, high-end commercial photography, professional lighting, elegant composition. Theme: ${context}`;
             formData.append('background.prompt', prompt);
@@ -49,8 +49,50 @@ export async function processStyledImage(
 
             console.log(`[IMAGE_SERVICE] Photoroom API call successful`);
 
-            // 4. Upload the result to storage
-            const resultBuffer = Buffer.from(await prRes.arrayBuffer());
+            // 4. Add logo watermark and upload to storage
+            let resultBuffer: Buffer = Buffer.from(await prRes.arrayBuffer() as ArrayBuffer);
+
+            if (logoUrl) {
+                try {
+                    console.log(`[IMAGE_SERVICE] Adding logo watermark from ${logoUrl}`);
+                    let logoBuffer: Buffer;
+                    if (logoUrl.startsWith('/uploads/') || logoUrl.startsWith('/')) {
+                        const fs = await import('fs');
+                        const path = await import('path');
+                        logoBuffer = fs.readFileSync(path.join(process.cwd(), 'public', logoUrl));
+                    } else {
+                        const logoRes = await fetch(logoUrl);
+                        if (!logoRes.ok) throw new Error('Failed to fetch logo');
+                        logoBuffer = Buffer.from(await logoRes.arrayBuffer());
+                    }
+
+                    // Resize logo to act as a watermark (e.g., width 250px)
+                    const watermark = await sharp(logoBuffer)
+                        .resize({ width: 250, withoutEnlargement: true })
+                        .png()
+                        .toBuffer();
+
+                    const baseImage = sharp(resultBuffer);
+                    const metadata = await baseImage.metadata();
+
+                    if (metadata.width && metadata.height) {
+                        resultBuffer = await baseImage
+                            .composite([
+                                {
+                                    input: watermark,
+                                    gravity: 'southeast',
+                                }
+                            ])
+                            .jpeg({ quality: 90 })
+                            .toBuffer();
+                        console.log(`[IMAGE_SERVICE] Watermark applied successfully`);
+                    }
+                } catch (wmErr) {
+                    console.error('[IMAGE_SERVICE] Failed to apply watermark:', wmErr);
+                    // continue with unwatermarked resultBuffer
+                }
+            }
+
             const fileName = `campaigns/styled/${Date.now()}-styled-product.jpg`;
             const styledUrl = await uploadToStorage(fileName, resultBuffer, 'image/jpeg');
             console.log(`[IMAGE_SERVICE] Styled image uploaded: ${styledUrl}`);

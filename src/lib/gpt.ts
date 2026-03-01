@@ -1,6 +1,6 @@
 // Helper for generating Product Description
 export async function generateProductDescription(name: string, price: string, context: string) {
-    if (process.env.NODE_ENV !== 'production' && !process.env.OPENAI_API_KEY) {
+    if (process.env.NODE_ENV !== 'production' && !process.env.GEMINI_API_KEY) {
         return `An exquisite piece of luxury jewelry, the ${name} is designed to captivate and shine.`;
     }
 
@@ -10,27 +10,25 @@ Price: ${price}
 Campaign Theme: ${context}
 Keep it to 2-3 sentences.`;
 
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
         },
         body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: prompt }]
+            contents: [{ parts: [{ text: prompt }] }]
         })
     });
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || 'OpenAI API error');
+    if (!res.ok) throw new Error(data.error?.message || 'Gemini API error');
 
-    return data.choices[0].message.content || '';
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
 // Helper for generating Platform Captions
 export async function generatePlatformCaptions(name: string, price: string, desc: string, context: string) {
-    if (process.env.NODE_ENV !== 'production' && !process.env.OPENAI_API_KEY) {
+    if (process.env.NODE_ENV !== 'production' && !process.env.GEMINI_API_KEY) {
         return [
             { platform: 'Instagram', caption_text: `✨ Stunning ${name} just landed! 💎`, hashtags: '#jewelry #luxury' },
             { platform: 'Facebook', caption_text: `Discover the elegance of our new ${name}.`, hashtags: '#fashion' },
@@ -52,27 +50,29 @@ Respond ONLY with a valid JSON object with a single key "captions" containing an
 - "hashtags": string (space separated hashtags)`;
 
     try {
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
             },
             body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                response_format: { type: 'json_object' },
-                messages: [{ role: 'user', content: prompt }]
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: 'application/json'
+                }
             })
         });
 
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error?.message || 'OpenAI API error');
+        if (!res.ok) throw new Error(data.error?.message || 'Gemini API error');
 
-        const content = data.choices[0].message.content || '{"captions":[]}';
-        const parsed = JSON.parse(content);
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '{"captions":[]}';
+        // Content might be wrapped in ```json ... ```, so clean it
+        const cleanContent = content.replace(/^```json/g, '').replace(/```$/g, '').trim();
+        const parsed = JSON.parse(cleanContent);
         return parsed.captions || [];
     } catch (error) {
-        console.error("OpenAI Error:", error);
+        console.error("Gemini Error:", error);
         return [];
     }
 }
