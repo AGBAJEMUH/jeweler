@@ -1,0 +1,74 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  password_hash String
+  created_at    DateTime @default(now())
+
+  @@map("users")
+}
+
+model Campaign {
+  id               Int              @id @default(autoincrement())
+  name             String
+  description      String?
+  logo_url         String?
+  status           String           @default("draft") // draft, processing, completed, failed
+  created_at       DateTime         @default(now())
+  products         Product[]
+  composite_images CompositeImage[]
+
+  @@index([status])
+  @@map("campaigns")
+}
+
+model Product {
+  id                 Int       @id @default(autoincrement())
+  campaign_id        Int
+  campaign           Campaign  @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  name               String
+  price              Decimal?  @db.Decimal(10, 2)
+  description        String?
+  original_image_url String
+  styled_image_url   String?
+  status             String    @default("draft") // draft, processing, completed, failed    
+  created_at         DateTime  @default(now())
+  captions           Caption[]
+
+  @@index([campaign_id])
+  @@map("products")
+}
+
+model CompositeImage {
+  id          Int      @id @default(autoincrement())
+  campaign_id Int
+  campaign    Campaign @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  image_url   String
+  created_at  DateTime @default(now())
+
+  @@map("composite_images")
+}
+
+model Caption {
+  id           Int      @id @default(autoincrement())
+  product_id   Int
+  product      Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  platform     String
+  caption_text String
+  hashtags     String?
+  created_at   DateTime @default(now())
+
+  @@index([product_id])
+  @@map("captions")
+}
