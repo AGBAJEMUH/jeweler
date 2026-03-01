@@ -56,10 +56,7 @@ Respond ONLY with a valid JSON object with a single key "captions" containing an
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseMimeType: 'application/json'
-                }
+                contents: [{ parts: [{ text: prompt }] }]
             })
         });
 

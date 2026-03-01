@@ -31,7 +31,7 @@ export async function processStyledImage(
             const formData = new FormData();
             formData.append('imageFile', new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' }), 'product.jpg');
 
-            const prompt = `Luxury jewelry display, high-end commercial photography, professional lighting, elegant composition. Theme: ${context}`;
+            const prompt = `Luxury jewelry display, high-end commercial photography, professional lighting, elegant composition. Theme: ${context}. IMPORTANT: Do not include or generate any text, letters, words, logos, signatures, or watermarks in the background.`;
             formData.append('background.prompt', prompt);
 
             // 3. Call Photoroom v2 edit API
@@ -66,9 +66,16 @@ export async function processStyledImage(
                         logoBuffer = Buffer.from(await logoRes.arrayBuffer());
                     }
 
-                    // Resize logo to act as a watermark (e.g., width 250px)
+                    // Resize logo and reduce opacity to 50% for a subtle watermark
                     const watermark = await sharp(logoBuffer)
                         .resize({ width: 250, withoutEnlargement: true })
+                        .ensureAlpha()
+                        .composite([{
+                            input: Buffer.from([255, 255, 255, 128]), // 50% alpha channel (128/255)
+                            raw: { width: 1, height: 1, channels: 4 },
+                            tile: true,
+                            blend: 'dest-in'
+                        }])
                         .png()
                         .toBuffer();
 
@@ -80,7 +87,7 @@ export async function processStyledImage(
                             .composite([
                                 {
                                     input: watermark,
-                                    gravity: 'southeast',
+                                    gravity: 'north', // top-center
                                 }
                             ])
                             .jpeg({ quality: 90 })
