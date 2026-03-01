@@ -28,7 +28,13 @@ GPT-4o is used to generate luxury product descriptions and social media platform
 - Create a new secret key.
 - Paste it into the `OPENAI_API_KEY` variable.
 
-### 4. Object Storage (AWS S3, Supabase, Cloudflare R2)
+### 4. Photoroom API (Image Processing)
+The application leverages the Photoroom API to automatically remove product backgrounds and generate high-end, luxury jewelry AI backgrounds for uploaded products.
+- Create an account at [Photoroom API](https://www.photoroom.com/api/).
+- Get your API key.
+- Paste it into the `PHOTOROOM_API_KEY` variable.
+
+### 5. Object Storage (AWS S3, Supabase, Cloudflare R2)
 *Note: If you leave the AWS variables blank, the app will gracefully fall back to saving uploads locally in the `public/uploads` folder for development purposes.*
 To use real cloud storage:
 - **AWS S3**: Go to the AWS Console, create an S3 bucket, and generate an IAM user with `AmazonS3FullAccess`. Get the Access Key and Secret Key. Fill in `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, and `AWS_BUCKET_NAME`.
