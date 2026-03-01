@@ -18,7 +18,9 @@ export function middleware(request: NextRequest) {
     }
 
     if (!token) {
-        if (isLoginPage || isLoginApi) {
+        // Allow login, login API, and the background generation route
+        const isGenerateApi = request.nextUrl.pathname.includes('/generate');
+        if (isLoginPage || isLoginApi || isGenerateApi) {
             return NextResponse.next();
         }
         return NextResponse.redirect(new URL('/login', request.url));

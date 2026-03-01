@@ -64,10 +64,19 @@ export async function POST(req: Request) {
         // Here we will do a 'fire and forget' fetch to a background API route to avoid blocking this request.
         const url = new URL(req.url);
         const generateUrl = `${url.protocol}//${url.host}/api/campaigns/${campaign.id}/generate`;
+        console.log(`[API_CAMPAIGNS] Triggering background generation: ${generateUrl}`);
 
         // TRIGGER BACKGROUND PROCESSING via after() so Vercel keeps the function alive
         // after() is the Next.js 15 API for scheduling work post-response — Vercel honours it correctly
-        after(() => fetch(generateUrl, { method: 'POST' }).catch(console.error));
+        after(async () => {
+            console.log(`[API_CAMPAIGNS] Executing background task for campaign ${campaign.id}`);
+            try {
+                const res = await fetch(generateUrl, { method: 'POST' });
+                console.log(`[API_CAMPAIGNS] Background generation request status: ${res.status}`);
+            } catch (err) {
+                console.error(`[API_CAMPAIGNS] Background generation fetch failed:`, err);
+            }
+        });
 
         return NextResponse.json({ success: true, campaignId: campaign.id }, { status: 201 });
 

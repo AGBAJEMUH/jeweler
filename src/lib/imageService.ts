@@ -11,7 +11,9 @@ export async function processStyledImage(
     price: string,
     context: string
 ): Promise<string> {
+    console.log(`[IMAGE_SERVICE] processStyledImage starting for ${originalUrl}`);
     if (process.env.PHOTOROOM_API_KEY) {
+        console.log(`[IMAGE_SERVICE] Photoroom API key found, calling API...`);
         try {
             // 1. Fetch the original image bytes
             let imageBuffer: Buffer;
@@ -41,21 +43,28 @@ export async function processStyledImage(
 
             if (!prRes.ok) {
                 const errText = await prRes.text();
-                console.error('Photoroom error:', errText);
+                console.error('[IMAGE_SERVICE] Photoroom error:', errText);
                 throw new Error('Photoroom generation failed');
             }
+
+            console.log(`[IMAGE_SERVICE] Photoroom API call successful`);
 
             // 4. Upload the result to storage
             const resultBuffer = Buffer.from(await prRes.arrayBuffer());
             const fileName = `campaigns/styled/${Date.now()}-styled-product.jpg`;
-            return await uploadToStorage(fileName, resultBuffer, 'image/jpeg');
+            const styledUrl = await uploadToStorage(fileName, resultBuffer, 'image/jpeg');
+            console.log(`[IMAGE_SERVICE] Styled image uploaded: ${styledUrl}`);
+            return styledUrl;
 
         } catch (e) {
-            console.error('Image processing error:', e);
+            console.error('[IMAGE_SERVICE] Image processing error:', e);
         }
+    } else {
+        console.warn(`[IMAGE_SERVICE] No Photoroom API key found, skipping API call`);
     }
 
     // Graceful fallback when no API key or Photoroom fails
+    console.log(`[IMAGE_SERVICE] Using fallback for ${originalUrl}`);
     return `${originalUrl}?styled=true&theme=luxury`;
 }
 
@@ -68,12 +77,14 @@ export async function processStyledImage(
  */
 export async function processCompositeImage(styledImageUrls: string[]): Promise<string> {
     if (styledImageUrls.length === 0) return '';
+    console.log(`[IMAGE_SERVICE] processCompositeImage starting for ${styledImageUrls.length} images`);
 
     const THUMB = 600; // px per tile
     const GAP = 8;     // px gap between tiles
     const BG = { r: 15, g: 15, b: 15 }; // near-black background
 
     try {
+        console.log(`[IMAGE_SERVICE] Downloading and resizing tiles...`);
         // 1. Download + resize every styled image to a uniform THUMB×THUMB tile
         const tiles = await Promise.all(
             styledImageUrls.map(async (url) => {
@@ -134,12 +145,13 @@ export async function processCompositeImage(styledImageUrls: string[]): Promise<
             .jpeg({ quality: 92 })
             .toBuffer();
 
-        // 5. Upload and return the public URL
         const fileName = `campaigns/composite/${Date.now()}-composite.jpg`;
-        return await uploadToStorage(fileName, composited, 'image/jpeg');
+        const compositeUrl = await uploadToStorage(fileName, composited, 'image/jpeg');
+        console.log(`[IMAGE_SERVICE] Composite image uploaded: ${compositeUrl}`);
+        return compositeUrl;
 
     } catch (err) {
-        console.error('Composite generation error:', err);
+        console.error('[IMAGE_SERVICE] Composite generation error:', err);
         return styledImageUrls[0];
     }
 }

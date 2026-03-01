@@ -11,6 +11,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     if (isNaN(campaignId)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
 
+    console.log(`[GENERATE] Starting background pipeline for campaign ${campaignId}`);
+
     try {
         const campaign = await db.campaign.findUnique({
             where: { id: campaignId },
@@ -21,22 +23,38 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
         const context = campaign.description || campaign.name;
         const styledImageUrls: string[] = [];
+        console.log(`[GENERATE] Found ${campaign.products.length} products to process`);
 
         // Loop through products
         for (const product of campaign.products) {
+            console.log(`[GENERATE] Processing product ${product.id}`);
             try {
-                // 1. Description
+                // 1. Description (Resilient)
                 let finalDesc = product.description;
                 if (!finalDesc || finalDesc.trim() === '') {
-                    finalDesc = await generateProductDescription(product.name, product.price?.toString() || 'Price on request', context);
+                    try {
+                        finalDesc = await generateProductDescription(product.name, product.price?.toString() || 'Price on request', context);
+                    } catch (descError) {
+                        console.error(`[GENERATE] Description failed for product ${product.id}, using fallback`, descError);
+                        finalDesc = `Elegant ${product.name} from our latest collection.`;
+                    }
                 }
 
-                // 2. Image Styling
+                // 2. Image Styling (Critical)
                 const styledImageUrl = await processStyledImage(product.original_image_url, campaign.logo_url || '', product.price?.toString() || '', context);
                 styledImageUrls.push(styledImageUrl);
 
-                // 3. Captions
-                const captions = await generatePlatformCaptions(product.name, product.price?.toString() || 'Price on request', finalDesc || '', context);
+                // 3. Captions (Resilient)
+                let captions = [];
+                try {
+                    captions = await generatePlatformCaptions(product.name, product.price?.toString() || 'Price on request', finalDesc || '', context);
+                } catch (captionError) {
+                    console.error(`[GENERATE] Captions failed for product ${product.id}, using fallback`, captionError);
+                    // generatePlatformCaptions already returns a fallback in dev, but here we provide one for production failure
+                    captions = [
+                        { platform: 'Instagram', caption_text: `Check out our new ${product.name}!`, hashtags: '#jewelry #luxury' }
+                    ];
+                }
 
                 // Save to DB
                 await db.product.update({
@@ -59,8 +77,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                         }))
                     });
                 }
+                console.log(`[GENERATE] Product ${product.id} processed successfully`);
             } catch (productError) {
-                console.error(`Failed to process product ${product.id}`, productError);
+                console.error(`[GENERATE] Failed to process product ${product.id}`, productError);
                 await db.product.update({
                     where: { id: product.id },
                     data: { status: 'failed' }
@@ -70,6 +89,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
         // 4. Composite Image
         if (styledImageUrls.length > 0) {
+            console.log(`[GENERATE] Creating composite image with ${styledImageUrls.length} images`);
             try {
                 const compositeUrl = await processCompositeImage(styledImageUrls);
                 if (compositeUrl) {
@@ -86,6 +106,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         }
 
         // Done
+        console.log(`[GENERATE] Pipeline completed for campaign ${campaignId}`);
         await db.campaign.update({
             where: { id: campaignId },
             data: { status: 'completed' }
