@@ -1,0 +1,1318 @@
+--- CONTENT OF JewelPromo AI App flow document .docx ---
+JewelPromo AI
+Application Flow Document
+Version: 1.0
+Application Type: Private Internal Web App
+Framework: Next.js (App Router)
+Deployment: Vercel
+---
+1. Purpose of This Document
+This document describes the complete operational flow of the application, including:
+User interaction flow
+System processing flow
+Backend orchestration
+AI generation flow
+Error handling flow
+Data lifecycle
+It ensures developers understand how the entire system behaves from login to asset download.
+---
+2. High-Level Application Flow
+User Login
+     │
+     ▼
+Dashboard
+     │
+     ▼
+Create Campaign
+     │
+     ▼
+Upload Product Images
+     │
+     ▼
+Submit Campaign
+     │
+     ▼
+Generation Pipeline
+ ├── Image Styling
+ ├── Caption Generation
+ └── Composite Image Creation
+     │
+     ▼
+Campaign Results Page
+     │
+     ├── Copy Captions
+     ├── Download Images
+     └── Download ZIP
+---
+3. User Journey Overview
+The complete user journey consists of 6 stages.
+1. Login
+2. Dashboard
+3. Create Campaign
+4. Upload Products
+5. Generate Campaign
+6. Download Assets
+---
+4. Authentication Flow
+Step 1: User Accesses Application
+User navigates to:
+/
+If user is not authenticated:
+Redirect to:
+/login
+---
+Step 2: Login Submission
+User enters:
+Email
+Password
+System performs:
+1. Credential validation
+2. Password hash comparison
+3. JWT token generation
+4. Store token in HTTP-only cookie
+Successful login redirects to:
+/dashboard
+---
+5. Dashboard Flow
+Purpose
+The dashboard provides an overview of existing campaigns.
+---
+Dashboard Displays
+For each campaign:
+Campaign Name
+Creation Date
+Number of Products
+Campaign Status
+Statuses:
+draft
+processing
+completed
+failed
+---
+Available Actions
+User can:
+1. View campaign
+2. Delete campaign
+3. Create new campaign
+Primary button:
+Create Campaign
+---
+6. Campaign Creation Flow
+---
+Step 1: Open Campaign Creator
+User navigates to:
+/create-campaign
+---
+Step 2: Enter Campaign Information
+Fields:
+Campaign Name (required)
+Campaign Description (optional)
+Logo Upload (optional)
+User clicks:
+Next
+---
+7. Product Upload Flow
+---
+Step 1: Upload Product Images
+User uploads 1–10 product photos.
+Supported sources:
+Camera
+File upload
+Drag-and-drop
+---
+Step 2: Add Product Details
+For each product:
+Required:
+Product Name
+Optional:
+Price
+Description
+If description is empty:
+AI will generate one automatically.
+---
+Step 3: Preview Uploaded Products
+UI shows:
+Image preview
+Editable fields
+Remove product option
+---
+Step 4: Submit Campaign
+User clicks:
+Generate Campaign
+Frontend sends request:
+POST /api/campaigns/{id}/generate
+---
+8. Campaign Generation Flow
+Once generation starts:
+Campaign status changes to:
+processing
+User is redirected to the campaign progress page.
+---
+9. AI Generation Pipeline
+The system performs the following steps.
+---
+Step 1: Product Loop
+For each uploaded product:
+FOR EACH product
+Execute pipeline.
+---
+Step 2: Product Description Generation
+If description is empty:
+System sends prompt to GPT.
+Inputs:
+Product Name
+Price
+Campaign theme
+Output:
+Luxury product description
+Store in database.
+---
+Step 3: Image Styling
+Original product image is sent to the Image Styling API.
+Processing includes:
+Background removal
+Image enhancement
+Luxury template background
+Price badge insertion
+Logo watermark placement
+Output:
+Styled promotional image
+Stored in object storage.
+Database updated.
+---
+Step 4: Caption Generation
+System sends structured prompt to GPT.
+Outputs captions for:
+Instagram
+Facebook
+WhatsApp
+TikTok
+X
+Each caption includes:
+Hook line
+Description
+CTA
+Hashtags
+Results stored in captions table.
+---
+10. Composite Image Flow
+After all product images are processed:
+System gathers:
+All styled images
+They are sent to the collage generator.
+Composite includes:
+All products
+Campaign title
+Luxury background
+Brand logo
+Stored as:
+collection image
+Saved in composite_images table.
+---
+11. Campaign Completion
+Campaign status updated:
+completed
+User interface updates automatically.
+Campaign results page loads.
+---
+12. Campaign Results Page Flow
+Page layout:
+1. Composite image (top)
+2. Download All button
+3. Product result grid
+---
+13. Product Result Card Flow
+Each product card contains:
+1. Styled promotional image
+2. Platform caption tabs
+3. Copy caption button
+4. Download image button
+---
+14. Caption Interaction Flow
+User selects platform:
+Instagram
+Facebook
+WhatsApp
+TikTok
+X
+Caption displayed.
+User clicks:
+Copy
+System:
+1. Copies caption to clipboard
+2. Displays confirmation toast
+---
+15. Image Download Flow
+User clicks:
+Download Image
+System returns:
+styled_image.jpg
+---
+16. Bulk Download Flow
+User clicks:
+Download All
+System:
+1. Fetches all styled images
+2. Adds composite image
+3. Creates ZIP file
+4. Sends ZIP to browser
+ZIP contents:
+/composite.jpg
+/product_1.jpg
+/product_2.jpg
+/product_3.jpg
+---
+17. Error Handling Flow
+---
+Image Generation Failure
+System retries:
+2 attempts
+If still fails:
+Product marked failed
+Continue pipeline
+---
+Caption Generation Failure
+Retry once.
+Fallback caption template used.
+---
+Composite Generation Failure
+System retries once.
+If still fails:
+Campaign still completes but without composite image.
+---
+18. Retry Flow
+User can retry failed product generation.
+Button appears:
+Retry Generation
+Backend re-runs pipeline only for failed products.
+---
+19. Campaign Deletion Flow
+User clicks:
+Delete Campaign
+System deletes:
+Campaign record
+Products
+Captions
+Composite image
+Stored images
+---
+20. Data Lifecycle Flow
+Upload Image
+     │
+     ▼
+Stored in /originals
+     │
+     ▼
+Processed to Styled Image
+     │
+     ▼
+Stored in /styled
+     │
+     ▼
+Used for Composite Image
+     │
+     ▼
+Used for ZIP Download
+---
+21. Application State Diagram
+Campaign Created
+       │
+       ▼
+Draft
+       │
+       ▼
+Processing
+       │
+       ├── Success → Completed
+       │
+       └── Failure → Failed
+---
+22. Performance Flow
+Target generation times:
+Operation
+Target
+Single image styling
+< 15 sec
+Caption generation
+< 5 sec
+Composite generation
+< 20 sec
+Full campaign
+< 60 sec
+---
+23. Full Application Flow Summary
+Login
+   │
+Dashboard
+   │
+Create Campaign
+   │
+Upload Products
+   │
+Generate Campaign
+   │
+AI Processing Pipeline
+   │
+Campaign Completed
+   │
+View Results
+   │
+Copy Captions / Download Images
+---
+24. Key Flow Design Principles
+1. Minimal clicks.
+2. Fast feedback.
+3. Async processing.
+4. Mobile-first.
+5. Clear generation status.
+6. Simple asset retrieval.
+--
+Failure Recovery Design
+
+--- CONTENT OF JewelPromo AI Backend document .docx ---
+JewelPromo AI
+Backend Architecture & Engineering Document
+Version: 1.0
+Deployment Target: Vercel
+User Model: Single User (Private)
+Architecture Style: Serverless + Managed Services
+---
+1. Backend Overview
+The backend is responsible for:
+Authentication
+Campaign lifecycle management
+Product image uploads
+Image processing orchestration
+AI caption generation
+Composite image generation
+Asset storage
+ZIP packaging
+Error handling & retries
+The system is built using:
+Next.js API Routes (App Router)
+PostgreSQL
+S3-compatible object storage
+GPT-4o (text generation)
+Image styling API
+Vercel Serverless Functions
+---
+2. High-Level Backend Architecture
+Client
+  │
+  ▼
+Next.js API Routes
+  │
+  ├── Auth Module
+  ├── Campaign Module
+  ├── Product Module
+  ├── AI Orchestrator
+  ├── Image Processor
+  ├── Caption Generator
+  ├── ZIP Generator
+  │
+  ▼
+External Services
+  ├── GPT-4o API
+  ├── Image Styling API
+  ├── Object Storage
+  └── PostgreSQL
+---
+3. Backend Modules
+---
+3.1 Authentication Module
+Responsibility
+Secure single-user access.
+Strategy
+Email + password
+Hashed password (bcrypt)
+JWT token (HTTP-only cookie)
+Flow
+1. POST /api/login
+2. Validate credentials
+3. Issue JWT
+4. Store in secure cookie
+Middleware:
+Protect all /dashboard routes
+Redirect if unauthenticated
+---
+3.2 Campaign Module
+Handles:
+Campaign creation
+Campaign retrieval
+Campaign deletion
+Generation trigger
+Endpoints
+POST /api/campaigns
+GET /api/campaigns
+GET /api/campaigns/:id
+DELETE /api/campaigns/:id
+POST /api/campaigns/:id/generate
+---
+3.3 Product Module
+Handles:
+Upload product image
+Store metadata
+Link to campaign
+Image Handling Flow
+1. Validate file
+2. Compress image
+3. Upload to object storage
+4. Save URL in database
+5. Return product ID
+---
+3.4 AI Orchestrator Module
+Core brain of the backend.
+Responsible for:
+Calling image styling API
+Calling GPT-4o
+Managing sequence
+Handling retries
+Updating database status
+---
+4. Campaign Generation Pipeline
+For N uploaded products:
+---
+Step 1: Validate Campaign State
+Ensure:
+At least 1 product
+No generation already in progress
+---
+Step 2: Process Each Product
+For each product:
+2.1 Generate Description (if missing)
+Call GPT-4o:
+Input:
+Product name
+Price
+Campaign context
+Output:
+Elegant product description
+Store in database.
+---
+2.2 Generate Styled Image
+Call image styling API:
+Send:
+Original image URL
+Logo URL
+Price
+Campaign theme
+Layout template ID
+Receive:
+Styled image URL
+Store in database.
+---
+2.3 Generate Platform Captions
+For each platform:
+Instagram
+Facebook
+WhatsApp
+TikTok
+X
+Call GPT-4o once with structured multi-output prompt.
+Store each result in captions table.
+---
+Step 3: Generate Composite Image
+Once all products complete:
+Fetch all styled images
+Send to styling API collage endpoint
+Generate collection image
+Store composite image URL
+---
+Step 4: Mark Campaign as Completed
+Update campaign status:
+processing → completed
+---
+5. Database Design (Expanded)
+---
+Campaign Status Enum
+Add to campaigns table:
+status VARCHAR(50)
+Possible values:
+draft
+processing
+completed
+failed
+---
+Suggested Indexes
+CREATE INDEX idx_campaign_id ON products(campaign_id);
+CREATE INDEX idx_product_id ON captions(product_id);
+CREATE INDEX idx_campaign_status ON campaigns(status);
+---
+6. Async Processing Strategy (Vercel)
+Because Vercel serverless functions have execution limits:
+Strategy
+Generation endpoint triggers async process.
+Immediately return 202 response.
+Background processing runs via:
+Queue simulation using database status
+Or Vercel background function
+Recommended: Use lightweight queue table.
+---
+jobs table (Optional for reliability)
+CREATE TABLE jobs (
+    id SERIAL PRIMARY KEY,
+    campaign_id INTEGER,
+    status VARCHAR(50),
+    retries INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+---
+7. Object Storage Structure
+---
+Bucket Structure:
+/originals/ campaign_id/ product_id.jpg
+/styled/ campaign_id/ product_id.jpg
+/composite/ campaign_id/ collection.jpg
+/zips/ campaign_id/ campaign.zip
+---
+8. ZIP Generation Logic
+When user clicks “Download All”:
+1. Fetch all styled images + composite
+2. Stream files from storage
+3. Generate ZIP in memory
+4. Send as attachment
+5. Optional: Cache ZIP in storage
+---
+9. Error Handling Strategy
+---
+Image API Failure
+Retry up to 2 times.
+If still fails:
+Mark product as failed
+Continue others
+---
+GPT Failure
+Retry once. Fallback:
+Minimal generic caption template.
+---
+Campaign Failure
+If more than 50% products fail:
+Mark campaign failed
+Show retry button
+---
+10. Rate Limiting
+Even single-user system should protect:
+Login attempts
+Generate endpoint
+Use:
+Simple in-memory rate limiter
+Or middleware-based limiter
+---
+11. Security Architecture
+---
+Secrets Management
+Store in Vercel environment variables:
+DATABASE_URL
+OPENAI_API_KEY
+IMAGE_API_KEY
+JWT_SECRET
+STORAGE_ACCESS_KEY
+STORAGE_SECRET
+---
+File Validation
+Before upload:
+MIME type check
+Max size 5MB
+Image dimension validation
+---
+Input Sanitization
+Trim text fields
+Escape unsafe characters
+Prevent injection
+---
+12. Performance Targets
+Operation
+Target
+Single image styling
+< 15s
+GPT multi-caption generation
+< 5s
+Composite generation
+< 20s
+Full 3-product campaign
+< 60s
+---
+13. Logging & Monitoring
+Log:
+API call duration
+Failures
+Retry attempts
+Generation time
+Use:
+Vercel Logs
+Optional Sentry integration
+---
+14. Scalability Path
+Although internal:
+To scale to SaaS:
+Add multi-user authentication
+Add tenant isolation
+Add usage tracking
+Add billing integration
+Add job queue system (Redis)
+---
+15. Backend Folder Structure (Recommended)
+src/
+ ├── app/
+ │   ├── api/
+ │   │   ├── login/
+ │   │   ├── campaigns/
+ │   │   ├── products/
+ │   │   └── generate/
+ │
+ ├── lib/
+ │   ├── db.ts
+ │   ├── auth.ts
+ │   ├── storage.ts
+ │   ├── imageService.ts
+ │   ├── gptService.ts
+ │   ├── zipService.ts
+ │   └── orchestrator.ts
+ │
+ ├── middleware.ts
+---
+16. Backend Readiness Checklist
+Authentication working
+Image upload tested
+GPT prompt tested
+Styling API integrated
+Composite logic verified
+ZIP download working
+Rate limiting enabled
+Environment variables configured
+Database indexes created
+---
+17. Backend Summary
+The backend is:
+Modular
+Serverless-compatible
+AI-orchestrated
+Image-processing focused
+Secure and private
+Production deployable on Vercel
+
+--- CONTENT OF JewelPromo AI Design document .docx ---
+JewelPromo AI
+Product Design Document
+Version: 1.0
+Application Type: Private Internal Tool
+Platform: Web (Next.js on Vercel)
+User Model: Single User
+---
+1. Design Principles
+1.1 Core Principles
+1. Speed First – Minimal clicks from upload to download.
+2. Mobile-Primary – Designed primarily for phone use.
+3. Visual Clarity – Image content is dominant.
+4. Low Cognitive Load – No clutter, clear CTAs.
+5. Elegant Luxury Aesthetic – Jewelry-appropriate design language.
+---
+2. Visual Identity System
+---
+2.1 Color System
+Primary Palette (Luxury Neutral):
+Primary: #111111 (Deep Black)
+Accent: #D4AF37 (Gold)
+Background: #F8F8F8
+Card Background: #FFFFFF
+Border: #EAEAEA
+States:
+Success: #1E7F4F
+Warning: #E4A11B
+Error: #C53030
+---
+2.2 Typography
+Font Stack:
+Headings: Playfair Display (luxury serif)
+Body: Inter or System UI
+Buttons: Semi-bold, uppercase
+Scale:
+Element
+Size
+Page Title
+28–32px
+Section Header
+22–24px
+Card Title
+18px
+Body
+14–16px
+Caption Tabs
+13px
+---
+2.3 Spacing System
+8px spacing grid.
+Common spacing:
+Card padding: 16px
+Section margin: 32px
+Grid gap: 16px
+Button padding: 10px 18px
+---
+3. Layout Architecture
+---
+3.1 Application Layout Structure
+App Layout
+│
+├── Top Navigation Bar
+│
+├── Main Content Area
+│   ├── Dashboard Page
+│   ├── Campaign Creation Page
+│   └── Campaign Detail Page
+│
+└── Footer (Minimal)
+---
+3.2 Top Navigation Bar
+Elements:
+Left:
+Logo text: “JewelPromo AI”
+Right:
+Dashboard
+Create Campaign
+Logout
+Mobile:
+Collapses into hamburger menu
+Height:
+60px
+Sticky: Yes
+---
+4. Page-Level Design
+---
+4.1 Login Page
+Centered card layout.
+Components:
+Logo
+Email field
+Password field
+Login button
+Button style:
+Gold background
+Black text
+Hover: darker gold
+---
+4.2 Dashboard Page
+Purpose: Overview of campaigns.
+Layout:
+Top:
+Page Title
+“Create New Campaign” button (Primary CTA)
+Body:
+Grid of Campaign Cards
+Responsive Grid:
+Mobile: 1 column
+Tablet: 2 columns
+Desktop: 3–4 columns
+Campaign Card:
+Campaign name
+Date created
+Number of products
+Status badge:
+Processing (yellow)
+Completed (green)
+View button
+---
+4.3 Campaign Creation Page
+---
+Step 1: Campaign Details
+Fields:
+Campaign Name
+Campaign Description
+Logo Upload
+---
+Step 2: Product Upload Section
+Card-based layout:
+For each product:
+Image preview
+Product Name input
+Price input
+Description textarea
+Add Product Button:
+Adds new product card dynamically
+Upload UX:
+Drag-and-drop
+Camera support (mobile)
+Preview before submit
+Submit Button:
+“Generate Campaign”
+Processing State:
+Progress bar
+Animated spinner
+Status message
+---
+4.4 Campaign Detail Page
+---
+Top Section
+Composite Collection Image:
+Full width on mobile
+Centered large hero on desktop
+Below:
+Download All (ZIP) button
+---
+Product Output Grid
+Responsive:
+Device
+Columns
+Mobile
+1
+Tablet
+2
+Desktop
+3
+Each Product Card Contains:
+1. Styled Image
+2. Download Image button
+3. Platform Tabs
+4. Copy Caption button
+---
+5. Caption Interaction Design
+---
+5.1 Platform Tabs
+Tabs:
+Instagram
+Facebook
+WhatsApp
+TikTok
+X
+Mobile:
+Convert to dropdown selector
+Desktop:
+Horizontal tab row
+Active tab:
+Gold underline
+Bold text
+---
+5.2 Caption Area
+Card inside card:
+Scrollable text box
+Hashtags separated visually
+Copy button (top-right)
+Success toast on copy
+---
+6. UX States
+---
+6.1 Loading States
+Skeleton loaders for images
+Blurred placeholder preview
+Animated shimmer cards
+---
+6.2 Error States
+Image generation failed:
+Retry button
+Error message
+Preserve original upload
+Caption generation failed:
+Regenerate caption button
+---
+6.3 Empty States
+No campaigns:
+Illustration
+CTA button
+No products:
+“Upload products to begin”
+---
+7. Download System UX
+---
+Individual Image:
+Download icon button
+Filename format: campaignname_productname_platform.jpg
+Bulk Download:
+ZIP button
+Generates ZIP on server
+Download automatically starts
+---
+8. Responsiveness Strategy
+---
+Mobile (Primary Use Case)
+Single-column layout
+Fixed bottom CTA button
+Dropdown instead of tabs
+Larger tap targets (min 44px)
+---
+Tablet
+Two-column grid
+Full tabs visible
+---
+Desktop
+Three-column grid
+Wider composite image
+Hover effects on cards
+---
+9. Accessibility Design
+WCAG AA color contrast
+Focus ring on inputs
+Keyboard navigable tabs
+Proper aria labels
+Semantic HTML structure
+---
+10. Animation & Microinteractions
+Smooth fade-in for generated images
+Button press animation
+Tab transition animation
+Success toast slide-in
+Hover lift effect on cards
+Animation duration:
+150–250ms
+---
+11. Branding Customization Design
+Logo Handling:
+Placed bottom-right watermark
+20% opacity
+Auto-scaled based on image size
+Price Badge:
+Gold rounded pill
+Top-left position
+Subtle shadow
+---
+12. Performance Design Considerations
+Lazy load images
+Use Next.js image optimization
+Compress uploads before API call
+Show preview immediately before processing
+---
+13. Security Design
+Auth-protected routes
+Secure file validation
+Limit upload size (e.g., 5MB per image)
+Sanitize input fields
+---
+14. Future Design Enhancements
+Theme switcher
+Multiple template styles
+Brand voice presets
+Dark mode
+Campaign analytics view
+---
+15. Complete Design Flow Summary
+User Journey:
+1. Login
+2. Create campaign
+3. Upload products
+4. Click generate
+5. View styled images
+6. Copy captions
+7. Download assets
+8. Post to social media
+Total clicks from login to asset download: Target: < 10 interactions
+
+--- CONTENT OF JewelPromo AI Product requirement document.docx ---
+JewelPromo AI
+Internal AI Campaign Generator for Jewelry Business
+Version: 1.0
+Deployment Target: Vercel
+User Type: Single User (Private System)
+---
+1. Executive Summary
+JewelPromo AI is a private, internal-use web application built with Next.js and deployed on Vercel. It enables a jeweler to:
+Upload raw jewelry photos
+Automatically generate styled promotional images
+Generate a composite collection image
+Generate AI-written promotional captions per platform:
+Instagram
+Facebook
+WhatsApp
+TikTok
+X
+Download individual or bulk campaign assets
+System is single-user, private, with one login credential.
+---
+2. System Architecture Diagram
+┌────────────────────┐
+                │      Client UI     │
+                │  Next.js Frontend  │
+                └──────────┬─────────┘
+                           │
+                           ▼
+                ┌────────────────────┐
+                │ Next.js API Routes │
+                │  (Server Actions)  │
+                └──────────┬─────────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼
+┌─────────────┐   ┌────────────────┐   ┌──────────────┐
+│ Image API   │   │ GPT-4o API     │   │ Object Store │
+│ (Styling)   │   │ (Captions)     │   │ (Images)     │
+└─────────────┘   └────────────────┘   └──────────────┘
+                           │
+                           ▼
+                    ┌─────────────┐
+                    │ PostgreSQL  │
+                    │ (Metadata)  │
+                    └─────────────┘
+---
+3. Technical Architecture
+---
+3.1 Frontend
+Next.js (App Router)
+TypeScript
+Tailwind CSS
+Fully responsive layout
+Optimized <Image /> usage
+Server Components where possible
+Client Components for upload and preview
+Responsive Behavior
+Screen Size
+Layout
+Mobile
+Single column
+Tablet
+Two columns
+Desktop
+3–4 column grid
+---
+3.2 Backend
+Built using:
+Next.js API Routes
+Async processing
+Vercel Edge Functions (optional)
+Background processing via queued requests (lightweight async)
+---
+3.3 AI Services
+Image Pipeline
+1. Background removal
+2. Enhancement
+3. Template styling
+4. Badge injection (price if present)
+5. Logo watermark placement
+6. Composite collage generation
+Text Pipeline
+Using GPT-4o:
+If description empty:
+Generate product description.
+Generate per platform:
+Hook
+Body
+CTA
+Hashtags
+---
+4. Functional Workflow
+---
+4.1 Campaign Creation
+Input:
+Campaign Name
+Optional campaign description
+Logo (optional but recommended)
+1–10 product images
+Per product:
+Name (required)
+Price (optional)
+Description (optional)
+---
+4.2 Processing Logic
+For N uploaded images:
+Generate N styled images
+Generate 1 composite collection image
+Generate captions for each image for 5 platforms
+Total assets: N + 1 images
+5 captions per image
+---
+5. Database Schema (PostgreSQL SQL)
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE TABLE campaigns (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    logo_url TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE TABLE products (
+    id SERIAL PRIMARY KEY,
+    campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    price DECIMAL(10,2),
+    description TEXT,
+    original_image_url TEXT NOT NULL,
+    styled_image_url TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE TABLE composite_images (
+    id SERIAL PRIMARY KEY,
+    campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+    image_url TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE TABLE captions (
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    platform VARCHAR(50) NOT NULL,
+    caption_text TEXT NOT NULL,
+    hashtags TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+---
+6. API Contract Specification
+---
+6.1 Authentication
+POST /api/login
+Request:
+{
+  "email": "user@example.com",
+  "password": "password"
+}
+Response:
+{
+  "success": true,
+  "token": "jwt_token"
+}
+---
+6.2 Create Campaign
+POST /api/campaigns
+Request:
+{
+  "name": "Gold Drop Collection",
+  "description": "",
+  "logoUrl": "..."
+}
+Response:
+{
+  "campaignId": 1
+}
+---
+6.3 Upload Product
+POST /api/products
+Request (multipart):
+campaignId
+name
+price
+description
+image file
+Response:
+{
+  "productId": 5
+}
+---
+6.4 Generate Campaign Assets
+POST /api/campaigns/{id}/generate
+Response:
+{
+  "status": "processing"
+}
+---
+6.5 Get Campaign
+GET /api/campaigns/{id}
+Response:
+{
+  campaign,
+  products,
+  compositeImage,
+  captions
+}
+---
+7. Security Design
+Single admin login
+JWT stored in HTTP-only cookie
+Environment variables for API keys
+File validation (MIME type, size limit)
+Rate limiting on generation endpoints
+---
+8. Vercel Deployment Plan
+---
+8.1 Environment Variables
+DATABASE_URL=
+OPENAI_API_KEY=
+IMAGE_API_KEY=
+JWT_SECRET=
+STORAGE_ACCESS_KEY=
+STORAGE_SECRET=
+---
+8.2 Deployment Steps
+1. Push project to GitHub
+2. Connect repo to Vercel
+3. Configure environment variables
+4. Set production database
+5. Deploy
+6. Run database migration
+---
+8.3 Storage Strategy
+Use S3-compatible storage
+Store:
+Original images
+Styled images
+Composite images
+---
+9. Performance Requirements
+Operation
+Target
+Single image styling
+< 15 sec
+Composite generation
+< 20 sec
+Caption generation
+< 5 sec
+Campaign full process (3 images)
+< 60 sec
+---
+10. Non-Functional Requirements
+Fully responsive
+Mobile-first design
+Error recovery system
+Processing indicator UI
+Graceful failure handling
+Retry generation
+---
+11. UX Requirements
+Campaign Page Layout:
+Top:
+Composite Image
+Download All (ZIP)
+Grid: Each card:
+Styled image
+Platform caption tabs
+Copy button
+Download button
+Mobile:
+Tabs collapse to dropdown
+---
+12. Monetization Strategy (Future Consideration)
+Although internal use only, future SaaS model could include:
+Pricing Model
+Free Tier: 5 campaigns/month
+Basic: $19/month
+Pro: $49/month
+Enterprise: Custom pricing
+Revenue Additions
+Premium template packs
+Advanced AI brand voice customization
+Video promo generator
+Social auto-post integration
+White-label solution
+---
+13. Scalability Plan
+To convert to SaaS:
+Multi-tenant database
+User table expansion
+Usage tracking table
+Stripe integration
+Role-based access control
+---
+14. MVP Definition
+Include:
+Single login
+Campaign creation
+Image styling
+Composite generation
+AI captions
+Download functionality
+Responsive UI
+Exclude:
+Social auto-posting
+Analytics dashboard
+Multi-user management
+---
+15. Risk Assessment
+Risk
+Mitigation
+Slow AI generation
+Async processing
+API rate limits
+Queue system
+Large image sizes
+Auto compression
+Caption quality inconsistency
+Structured GPT prompting
+
