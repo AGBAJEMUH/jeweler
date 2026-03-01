@@ -1,6 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { db } from '@/lib/db';
 import { uploadToStorage } from '@/lib/storage';
+
+// Allow sufficient time for uploads + background generation on Vercel
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
     try {
@@ -62,7 +65,9 @@ export async function POST(req: Request) {
         const url = new URL(req.url);
         const generateUrl = `${url.protocol}//${url.host}/api/campaigns/${campaign.id}/generate`;
 
-        fetch(generateUrl, { method: 'POST' }).catch(console.error);
+        // TRIGGER BACKGROUND PROCESSING via after() so Vercel keeps the function alive
+        // after() is the Next.js 15 API for scheduling work post-response — Vercel honours it correctly
+        after(() => fetch(generateUrl, { method: 'POST' }).catch(console.error));
 
         return NextResponse.json({ success: true, campaignId: campaign.id }, { status: 201 });
 

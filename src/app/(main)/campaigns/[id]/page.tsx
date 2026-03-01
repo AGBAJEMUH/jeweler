@@ -28,6 +28,12 @@ export default async function CampaignDetailPage({ params }: PageProps) {
 
     const compositeImage = campaign.composite_images[0]?.image_url;
 
+    // Serialize Prisma Decimal fields to plain numbers so they can be passed to Client Components
+    const products = campaign.products.map((p) => ({
+        ...p,
+        price: p.price !== null ? Number(p.price) : null,
+    }));
+
     return (
         <div className="pb-20">
             <div className="mb-8 border-b border-(--border) pb-4 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
@@ -37,9 +43,9 @@ export default async function CampaignDetailPage({ params }: PageProps) {
                         Created on {new Date(campaign.created_at).toLocaleDateString()}
                         <span className="mx-2">•</span>
                         Status: <span className={`uppercase font-semibold ${campaign.status === 'completed' ? 'text-(--success)' :
-                                campaign.status === 'processing' ? 'text-(--warning)' :
-                                    campaign.status === 'failed' ? 'text-(--error)' :
-                                        'text-gray-600'
+                            campaign.status === 'processing' ? 'text-(--warning)' :
+                                campaign.status === 'failed' ? 'text-(--error)' :
+                                    'text-gray-600'
                             }`}>{campaign.status}</span>
                     </p>
                 </div>
@@ -71,9 +77,9 @@ export default async function CampaignDetailPage({ params }: PageProps) {
 
             {/* Products Grid */}
             <div>
-                <h2 className="font-heading text-2xl font-bold mb-6">Generated Assets ({campaign.products.length})</h2>
+                <h2 className="font-heading text-2xl font-bold mb-6">Generated Assets ({products.length})</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {campaign.products.map(product => (
+                    {products.map(product => (
                         <ProductResultCard key={product.id} product={product as any} />
                     ))}
                 </div>

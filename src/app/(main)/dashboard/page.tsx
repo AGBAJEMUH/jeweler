@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import Link from 'next/link';
+import DeleteCampaignButton from '@/components/DeleteCampaignButton';
 
 export default async function DashboardPage() {
     const campaigns = await db.campaign.findMany({
@@ -47,9 +48,12 @@ export default async function DashboardPage() {
                                     {campaign.status.toUpperCase()}
                                 </span>
 
-                                <Link href={`/campaigns/${campaign.id}`} className="text-sm font-medium text-(--gold) hover:underline">
-                                    View
-                                </Link>
+                                <div className="flex items-center gap-2">
+                                    <DeleteCampaignButton campaignId={campaign.id} />
+                                    <Link href={`/campaigns/${campaign.id}`} className="text-sm font-medium text-(--gold) hover:underline">
+                                        View →
+                                    </Link>
+                                </div>
                             </div>
                         </div>
                     ))}
