@@ -92,16 +92,21 @@ export async function processStyledImage(
                     const metadata = await baseImage.metadata();
 
                     if (metadata.width && metadata.height) {
+                        const PADDING = 40;
                         resultBuffer = await baseImage
                             .composite([
                                 {
                                     input: watermark,
-                                    gravity: 'north', // top-center
+                                    gravity: 'southeast',
+                                    // Sharp applies gravity relative to the base image. 
+                                    // To add padding from the bottom-right corner:
+                                    top: metadata.height - (await sharp(watermark).metadata()).height! - PADDING,
+                                    left: metadata.width - 250 - PADDING,
                                 }
                             ])
                             .jpeg({ quality: 90 })
                             .toBuffer();
-                        console.log(`[IMAGE_SERVICE] Watermark applied successfully`);
+                        console.log(`[IMAGE_SERVICE] Watermark applied to bottom-right successfully`);
                     }
                 } catch (wmErr) {
                     console.error('[IMAGE_SERVICE] Failed to apply watermark:', wmErr);
