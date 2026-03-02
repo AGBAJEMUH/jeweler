@@ -1,16 +1,81 @@
 import sharp from 'sharp';
 import { uploadToStorage } from '@/lib/storage';
-
-const visualStyles: Record<string, string> = {
-    Luxury: 'soft editorial lighting, gold and ivory background, luxury velvet and marble surfaces, champagne and warm tones, sophisticated depth of field, Vogue magazine aesthetic',
-    Trendy: 'vibrant colorful gradient background, trendy lifestyle setting, bright and fun colors, social-media-viral aesthetic, Gen-Z color palette, energetic composition',
-    Minimal: 'pure white studio background, clean Scandinavian minimalism, negative space, monochromatic neutral tones, precise product placement, Apple product photography style',
-    Bold: 'dramatic chiaroscuro lighting, dark jewel-toned background, deep contrast, powerful composition, fashion-forward editorial, high-impact visual statement',
-};
+import fs from 'fs';
+import path from 'path';
 
 /**
- * Calls the Photoroom API to replace the background of a product image
- * with an AI-generated luxury jewelry setting, then uploads the result to storage.
+ * Attempts to remove background using Poof.bg API
+ */
+async function removeBackgroundPoof(imageBuffer: Buffer): Promise<Buffer | null> {
+    const apiKey = process.env.POOF_API_KEY;
+    if (!apiKey) return null;
+
+    try {
+        const formData = new FormData();
+        formData.append('image_file', new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' }), 'image.jpg');
+
+        const response = await fetch('https://api.poof.bg/v1/remove', {
+            method: 'POST',
+            headers: { 'x-api-key': apiKey },
+            body: formData
+        });
+
+        if (!response.ok) return null;
+        return Buffer.from(await response.arrayBuffer());
+    } catch (error) {
+        console.error('[IMAGE_SERVICE] Poof.bg Error:', error);
+        return null;
+    }
+}
+
+/**
+ * Attempts to remove background using FreeBGRemover (Removal.ai) API
+ */
+async function removeBackgroundFree(imageBuffer: Buffer): Promise<Buffer | null> {
+    const apiKey = process.env.FREEBG_API_KEY;
+    if (!apiKey) return null;
+
+    try {
+        const formData = new FormData();
+        formData.append('image_file', new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' }), 'image.jpg');
+
+        const response = await fetch('https://api.removal.ai/3/remove', {
+            method: 'POST',
+            headers: { 'Rm-Token': apiKey },
+            body: formData
+        });
+
+        if (!response.ok) return null;
+        const data = await response.json();
+        if (data.status !== 1 || !data.url) return null;
+
+        const imgRes = await fetch(data.url);
+        return Buffer.from(await imgRes.arrayBuffer());
+    } catch (error) {
+        console.error('[IMAGE_SERVICE] FreeBG Error:', error);
+        return null;
+    }
+}
+
+/**
+ * Gets a random background image from the public folder based on tone
+ */
+function getRandomBackground(tone: string): Buffer | null {
+    const bgDir = path.join(process.cwd(), 'public', 'backgrounds', tone);
+    if (!fs.existsSync(bgDir)) return null;
+
+    const files = fs.readdirSync(bgDir).filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
+    if (files.length === 0) return null;
+
+    const randomFile = files[Math.floor(Math.random() * files.length)];
+    return fs.readFileSync(path.join(bgDir, randomFile));
+}
+
+/**
+ * Main Image Processing Logic
+ * 1. Removes background (resilient choice between Poof and FreeBG)
+ * 2. Composites onto a local tone-based background using Sharp
+ * 3. Applies shadow, lighting, and branding
  */
 export async function processStyledImage(
     originalUrl: string,
@@ -20,146 +85,166 @@ export async function processStyledImage(
     tone: string = 'Luxury'
 ): Promise<string> {
     console.log(`[IMAGE_SERVICE] processStyledImage starting for ${originalUrl} with tone ${tone}`);
-    if (process.env.PHOTOROOM_API_KEY) {
-        console.log(`[IMAGE_SERVICE] Photoroom API key found, calling API...`);
-        try {
-            // 1. Fetch the original image bytes
-            let imageBuffer: Buffer;
-            if (originalUrl.startsWith('/uploads/')) {
-                const fs = await import('fs');
-                const path = await import('path');
-                imageBuffer = fs.readFileSync(path.join(process.cwd(), 'public', originalUrl));
-            } else {
-                const res = await fetch(originalUrl);
-                if (!res.ok) throw new Error('Failed to fetch original image');
-                imageBuffer = Buffer.from(await res.arrayBuffer());
-            }
 
-            // 2. Build Photoroom API request
-            const formData = new FormData();
-            formData.append('imageFile', new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' }), 'product.jpg');
-
-            const styleDesc = visualStyles[tone] || visualStyles.Luxury;
-            const prompt = `Professional jewelry product photography. Visual style: ${styleDesc}. Theme: ${context}. IMPORTANT: Do not include or generate any text, letters, words, logos, signatures, or watermarks in the background. Ultra high resolution, photorealistic.`;
-            formData.append('background.prompt', prompt);
-
-            // 3. Call Photoroom v2 edit API
-            const prRes = await fetch('https://image-api.photoroom.com/v2/edit', {
-                method: 'POST',
-                headers: { 'x-api-key': process.env.PHOTOROOM_API_KEY },
-                body: formData,
-            });
-
-            if (!prRes.ok) {
-                const errText = await prRes.text();
-                console.error('[IMAGE_SERVICE] Photoroom error:', errText);
-                throw new Error('Photoroom generation failed');
-            }
-
-            console.log(`[IMAGE_SERVICE] Photoroom API call successful`);
-
-            // 4. Add logo watermark and upload to storage
-            let resultBuffer: Buffer = Buffer.from(await prRes.arrayBuffer() as ArrayBuffer);
-
-            if (logoUrl) {
-                try {
-                    console.log(`[IMAGE_SERVICE] Adding logo watermark from ${logoUrl}`);
-                    let logoBuffer: Buffer;
-                    if (logoUrl.startsWith('/uploads/') || logoUrl.startsWith('/')) {
-                        const fs = await import('fs');
-                        const path = await import('path');
-                        logoBuffer = fs.readFileSync(path.join(process.cwd(), 'public', logoUrl));
-                    } else {
-                        const logoRes = await fetch(logoUrl);
-                        if (!logoRes.ok) throw new Error('Failed to fetch logo');
-                        logoBuffer = Buffer.from(await logoRes.arrayBuffer());
-                    }
-
-                    // Resize logo and reduce opacity to 50% for a subtle watermark
-                    const watermark = await sharp(logoBuffer)
-                        .resize({ width: 250, withoutEnlargement: true })
-                        .ensureAlpha()
-                        .composite([{
-                            input: Buffer.from([255, 255, 255, 128]), // 50% alpha channel (128/255)
-                            raw: { width: 1, height: 1, channels: 4 },
-                            tile: true,
-                            blend: 'dest-in'
-                        }])
-                        .png()
-                        .toBuffer();
-
-                    const baseImage = sharp(resultBuffer);
-                    const metadata = await baseImage.metadata();
-
-                    if (metadata.width && metadata.height) {
-                        const PADDING = 40;
-                        resultBuffer = await baseImage
-                            .composite([
-                                {
-                                    input: watermark,
-                                    gravity: 'southeast',
-                                    // Sharp applies gravity relative to the base image. 
-                                    // To add padding from the bottom-right corner:
-                                    top: metadata.height - (await sharp(watermark).metadata()).height! - PADDING,
-                                    left: metadata.width - 250 - PADDING,
-                                }
-                            ])
-                            .jpeg({ quality: 90 })
-                            .toBuffer();
-                        console.log(`[IMAGE_SERVICE] Watermark applied to bottom-right successfully`);
-                    }
-                } catch (wmErr) {
-                    console.error('[IMAGE_SERVICE] Failed to apply watermark:', wmErr);
-                    // continue with unwatermarked resultBuffer
-                }
-            }
-
-            const fileName = `campaigns/styled/${Date.now()}-styled-product.jpg`;
-            const styledUrl = await uploadToStorage(fileName, resultBuffer, 'image/jpeg');
-            console.log(`[IMAGE_SERVICE] Styled image uploaded: ${styledUrl}`);
-            return styledUrl;
-
-        } catch (e) {
-            console.error('[IMAGE_SERVICE] Image processing error:', e);
+    try {
+        // 1. Fetch original image
+        let imageBuffer: Buffer;
+        if (originalUrl.startsWith('/uploads/') || originalUrl.startsWith('/')) {
+            imageBuffer = fs.readFileSync(path.join(process.cwd(), 'public', originalUrl));
+        } else {
+            const res = await fetch(originalUrl);
+            if (!res.ok) throw new Error('Failed to fetch original image');
+            imageBuffer = Buffer.from(await res.arrayBuffer());
         }
-    } else {
-        console.warn(`[IMAGE_SERVICE] No Photoroom API key found, skipping API call`);
-    }
 
-    // Graceful fallback when no API key or Photoroom fails
-    console.log(`[IMAGE_SERVICE] Using fallback for ${originalUrl}`);
-    return `${originalUrl}?styled=true&theme=${tone.toLowerCase()}`;
+        // 2. Remove Background (Try Poof first, then FreeBG)
+        let productNoBg = await removeBackgroundPoof(imageBuffer);
+        if (!productNoBg) {
+            console.log('[IMAGE_SERVICE] Poof.bg failed or limit reached, trying FreeBG...');
+            productNoBg = await removeBackgroundFree(imageBuffer);
+        }
+
+        // If no background removal works, we can't style it properly locally
+        if (!productNoBg) {
+            console.warn('[IMAGE_SERVICE] All BG removal APIs failed. Falling back to original.');
+            return originalUrl;
+        }
+
+        // 3. Select Background
+        const bgBuffer = getRandomBackground(tone);
+        if (!bgBuffer) {
+            console.warn(`[IMAGE_SERVICE] No backgrounds found for tone ${tone}. Check public/backgrounds/`);
+            return originalUrl;
+        }
+
+        // 4. Composition using Sharp
+        const bgMetadata = await sharp(bgBuffer).metadata();
+        const width = bgMetadata.width || 1200;
+        const height = bgMetadata.height || 1200;
+
+        // Visual Refinement: Subtle blur to background for depth-of-field
+        let processedBg = sharp(bgBuffer).blur(2);
+
+        // Visual Refinement: Subtle color grading overlay based on tone
+        const grading: Record<string, { r: number, g: number, b: number, alpha: number }> = {
+            Luxury: { r: 255, g: 215, b: 0, alpha: 0.05 }, // gold tint
+            Trendy: { r: 255, g: 20, b: 147, alpha: 0.05 }, // pink tint
+            Minimal: { r: 255, g: 255, b: 255, alpha: 0.05 }, // clean lift
+            Bold: { r: 0, g: 0, b: 0, alpha: 0.1 }, // dark squash
+        };
+        const toneGrading = grading[tone] || grading.Luxury;
+
+        processedBg = processedBg.composite([{
+            input: {
+                create: {
+                    width,
+                    height,
+                    channels: 4,
+                    background: toneGrading
+                }
+            },
+            blend: 'over'
+        }]);
+
+        const bgProcessedBuffer = await processedBg.toBuffer();
+
+        // Resize product to fit nicely (usually 60-70% of background)
+        const productSize = Math.floor(Math.min(width, height) * 0.7);
+        const resizedProduct = await sharp(productNoBg)
+            .resize(productSize, productSize, { fit: 'inside' })
+            .toBuffer();
+
+        const productMetadata = await sharp(resizedProduct).metadata();
+        const pW = productMetadata.width || 0;
+        const pH = productMetadata.height || 0;
+
+        // Generate a soft drop shadow
+        const shadow = await sharp(resizedProduct)
+            .extractChannel('alpha')
+            .blur(12)
+            .extend({ top: 15, bottom: 15, left: 15, right: 15, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+            .toBuffer();
+
+        // Final Composite onto processed background
+        let result = sharp(bgProcessedBuffer)
+            .composite([
+                {
+                    input: shadow,
+                    blend: 'multiply',
+                    top: Math.floor((height - pH) / 2) + 12, // shadow offset
+                    left: Math.floor((width - pW) / 2) + 8,
+                },
+                {
+                    input: resizedProduct,
+                    top: Math.floor((height - pH) / 2),
+                    left: Math.floor((width - pW) / 2),
+                }
+            ]);
+
+        // 5. Add Logo Watermark (Southeast)
+        if (logoUrl) {
+            try {
+                let logoBuf: Buffer;
+                if (logoUrl.startsWith('/uploads/') || logoUrl.startsWith('/')) {
+                    logoBuf = fs.readFileSync(path.join(process.cwd(), 'public', logoUrl));
+                } else {
+                    const lRes = await fetch(logoUrl);
+                    logoBuf = Buffer.from(await lRes.arrayBuffer());
+                }
+
+                const watermark = await sharp(logoBuf)
+                    .resize({ width: 200, withoutEnlargement: true })
+                    .ensureAlpha()
+                    .composite([{
+                        input: Buffer.from([255, 255, 255, 128]),
+                        raw: { width: 1, height: 1, channels: 4 },
+                        tile: true,
+                        blend: 'dest-in'
+                    }])
+                    .png()
+                    .toBuffer();
+
+                result = result.composite([
+                    {
+                        input: watermark,
+                        gravity: 'southeast',
+                        top: height - 100, // naive positioning with padding
+                        left: width - 240,
+                    }
+                ]);
+            } catch (wmErr) {
+                console.error('[IMAGE_SERVICE] Logo failed:', wmErr);
+            }
+        }
+
+        const finalBuffer = await result.jpeg({ quality: 90 }).toBuffer();
+        const fileName = `campaigns/styled/${Date.now()}-styled.jpg`;
+        return await uploadToStorage(fileName, finalBuffer, 'image/jpeg');
+
+    } catch (e) {
+        console.error('[IMAGE_SERVICE] Style error:', e);
+        return originalUrl;
+    }
 }
 
 /**
- * Creates a smart grid collage of all styled product images using sharp.
- *
- * Layout auto-calculated: cols = ceil(√N), rows = ceil(N / cols).
- * Any incomplete last row is centred.
- * Each tile is THUMB×THUMB px. Result is uploaded to storage.
+ * Creates a smart grid collage
  */
 export async function processCompositeImage(styledImageUrls: string[]): Promise<string> {
     if (styledImageUrls.length === 0) return '';
-    console.log(`[IMAGE_SERVICE] processCompositeImage starting for ${styledImageUrls.length} images`);
-
-    const THUMB = 600; // px per tile
-    const GAP = 8;     // px gap between tiles
-    const BG = { r: 15, g: 15, b: 15 }; // near-black background
+    const THUMB = 600;
+    const GAP = 8;
+    const BG = { r: 15, g: 15, b: 15 };
 
     try {
-        console.log(`[IMAGE_SERVICE] Downloading and resizing tiles...`);
-        // 1. Download + resize every styled image to a uniform THUMB×THUMB tile
         const tiles = await Promise.all(
             styledImageUrls.map(async (url) => {
                 let buf: Buffer;
                 if (url.startsWith('/uploads/') || url.startsWith('/')) {
-                    const fs = await import('fs');
-                    const path = await import('path');
                     buf = fs.readFileSync(path.join(process.cwd(), 'public', url));
                 } else {
                     const cleanUrl = url.split('?')[0];
                     const res = await fetch(cleanUrl);
-                    if (!res.ok) throw new Error(`Failed to fetch styled image: ${cleanUrl}`);
                     buf = Buffer.from(await res.arrayBuffer());
                 }
                 return sharp(buf)
@@ -170,51 +255,28 @@ export async function processCompositeImage(styledImageUrls: string[]): Promise<
         );
 
         const n = tiles.length;
-
-        // 2. Calculate grid dimensions
         const cols = Math.ceil(Math.sqrt(n));
         const rows = Math.ceil(n / cols);
         const totalWidth = cols * THUMB + (cols - 1) * GAP;
         const totalHeight = rows * THUMB + (rows - 1) * GAP;
 
-        // 3. Position each tile — centre-align any incomplete last row
-        const compositeInputs: sharp.OverlayOptions[] = tiles.map((tile, i) => {
+        const compositeInputs = tiles.map((tile, i) => {
             const row = Math.floor(i / cols);
             const col = i % cols;
-
-            // How many tiles are in this row?
             const tilesInRow = row === rows - 1 ? n - row * cols : cols;
-            // Offset to centre incomplete row
             const rowWidth = tilesInRow * THUMB + (tilesInRow - 1) * GAP;
             const xOffset = Math.floor((totalWidth - rowWidth) / 2);
-
-            return {
-                input: tile,
-                left: xOffset + col * (THUMB + GAP),
-                top: row * (THUMB + GAP),
-            };
+            return { input: tile, left: xOffset + col * (THUMB + GAP), top: row * (THUMB + GAP) };
         });
 
-        // 4. Compose onto a dark canvas
         const composited = await sharp({
-            create: {
-                width: totalWidth,
-                height: totalHeight,
-                channels: 3,
-                background: BG,
-            },
-        })
-            .composite(compositeInputs)
-            .jpeg({ quality: 92 })
-            .toBuffer();
+            create: { width: totalWidth, height: totalHeight, channels: 3, background: BG }
+        }).composite(compositeInputs).jpeg({ quality: 92 }).toBuffer();
 
         const fileName = `campaigns/composite/${Date.now()}-composite.jpg`;
-        const compositeUrl = await uploadToStorage(fileName, composited, 'image/jpeg');
-        console.log(`[IMAGE_SERVICE] Composite image uploaded: ${compositeUrl}`);
-        return compositeUrl;
-
+        return await uploadToStorage(fileName, composited, 'image/jpeg');
     } catch (err) {
-        console.error('[IMAGE_SERVICE] Composite generation error:', err);
+        console.error('[IMAGE_SERVICE] Composite error:', err);
         return styledImageUrls[0];
     }
 }
