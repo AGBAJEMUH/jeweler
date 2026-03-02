@@ -1,6 +1,13 @@
 import sharp from 'sharp';
 import { uploadToStorage } from '@/lib/storage';
 
+const visualStyles: Record<string, string> = {
+    Luxury: 'soft editorial lighting, gold and ivory background, luxury velvet and marble surfaces, champagne and warm tones, sophisticated depth of field, Vogue magazine aesthetic',
+    Trendy: 'vibrant colorful gradient background, trendy lifestyle setting, bright and fun colors, social-media-viral aesthetic, Gen-Z color palette, energetic composition',
+    Minimal: 'pure white studio background, clean Scandinavian minimalism, negative space, monochromatic neutral tones, precise product placement, Apple product photography style',
+    Bold: 'dramatic chiaroscuro lighting, dark jewel-toned background, deep contrast, powerful composition, fashion-forward editorial, high-impact visual statement',
+};
+
 /**
  * Calls the Photoroom API to replace the background of a product image
  * with an AI-generated luxury jewelry setting, then uploads the result to storage.
@@ -9,9 +16,10 @@ export async function processStyledImage(
     originalUrl: string,
     logoUrl: string,
     price: string,
-    context: string
+    context: string,
+    tone: string = 'Luxury'
 ): Promise<string> {
-    console.log(`[IMAGE_SERVICE] processStyledImage starting for ${originalUrl}`);
+    console.log(`[IMAGE_SERVICE] processStyledImage starting for ${originalUrl} with tone ${tone}`);
     if (process.env.PHOTOROOM_API_KEY) {
         console.log(`[IMAGE_SERVICE] Photoroom API key found, calling API...`);
         try {
@@ -31,7 +39,8 @@ export async function processStyledImage(
             const formData = new FormData();
             formData.append('imageFile', new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' }), 'product.jpg');
 
-            const prompt = `Luxury jewelry display, high-end commercial photography, professional lighting, elegant composition. Theme: ${context}. IMPORTANT: Do not include or generate any text, letters, words, logos, signatures, or watermarks in the background.`;
+            const styleDesc = visualStyles[tone] || visualStyles.Luxury;
+            const prompt = `Professional jewelry product photography. Visual style: ${styleDesc}. Theme: ${context}. IMPORTANT: Do not include or generate any text, letters, words, logos, signatures, or watermarks in the background. Ultra high resolution, photorealistic.`;
             formData.append('background.prompt', prompt);
 
             // 3. Call Photoroom v2 edit API
@@ -114,7 +123,7 @@ export async function processStyledImage(
 
     // Graceful fallback when no API key or Photoroom fails
     console.log(`[IMAGE_SERVICE] Using fallback for ${originalUrl}`);
-    return `${originalUrl}?styled=true&theme=luxury`;
+    return `${originalUrl}?styled=true&theme=${tone.toLowerCase()}`;
 }
 
 /**

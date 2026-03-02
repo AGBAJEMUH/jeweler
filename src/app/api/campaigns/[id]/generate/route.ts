@@ -33,7 +33,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 let finalDesc = product.description;
                 if (!finalDesc || finalDesc.trim() === '') {
                     try {
-                        finalDesc = await generateProductDescription(product.name, product.price?.toString() || 'Price on request', context, campaign.tone);
+                        finalDesc = await generateProductDescription(product.name, product.price?.toString() || 'Price on request', context, (campaign as any).tone);
                     } catch (descError) {
                         console.error(`[GENERATE] Description failed for product ${product.id}, using fallback`, descError);
                         finalDesc = `Elegant ${product.name} from our latest collection.`;
@@ -41,13 +41,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 }
 
                 // 2. Image Styling (Critical)
-                const styledImageUrl = await processStyledImage(product.original_image_url, campaign.logo_url || '', product.price?.toString() || '', context);
+                const styledImageUrl = await processStyledImage(product.original_image_url, campaign.logo_url || '', product.price?.toString() || '', context, (campaign as any).tone);
                 styledImageUrls.push(styledImageUrl);
+
 
                 // 3. Captions (Resilient)
                 let captions = [];
                 try {
-                    captions = await generatePlatformCaptions(product.name, product.price?.toString() || 'Price on request', finalDesc || '', context, campaign.tone);
+                    captions = await generatePlatformCaptions(product.name, product.price?.toString() || 'Price on request', finalDesc || '', context, (campaign as any).tone);
 
                 } catch (captionError) {
                     console.error(`[GENERATE] Captions failed for product ${product.id}, using fallback`, captionError);
