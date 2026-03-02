@@ -10,6 +10,7 @@ export async function POST(req: Request) {
         const formData = await req.formData();
         const name = formData.get('name') as string;
         const description = formData.get('description') as string;
+        const tone = formData.get('tone') as string || 'Luxury';
         const logoFile = formData.get('logoFile') as File | null;
         const productsDataStr = formData.get('productsData') as string;
 
@@ -31,10 +32,12 @@ export async function POST(req: Request) {
             data: {
                 name,
                 description,
+                tone,
                 logo_url: logoUrl,
                 status: 'processing', // Will immediately start processing logically
             }
         });
+
 
         // Upload Products and Link to Campaign
         for (let i = 0; i < productsData.length; i++) {

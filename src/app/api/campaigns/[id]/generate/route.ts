@@ -33,7 +33,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 let finalDesc = product.description;
                 if (!finalDesc || finalDesc.trim() === '') {
                     try {
-                        finalDesc = await generateProductDescription(product.name, product.price?.toString() || 'Price on request', context);
+                        finalDesc = await generateProductDescription(product.name, product.price?.toString() || 'Price on request', context, campaign.tone);
                     } catch (descError) {
                         console.error(`[GENERATE] Description failed for product ${product.id}, using fallback`, descError);
                         finalDesc = `Elegant ${product.name} from our latest collection.`;
@@ -47,7 +47,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 // 3. Captions (Resilient)
                 let captions = [];
                 try {
-                    captions = await generatePlatformCaptions(product.name, product.price?.toString() || 'Price on request', finalDesc || '', context);
+                    captions = await generatePlatformCaptions(product.name, product.price?.toString() || 'Price on request', finalDesc || '', context, campaign.tone);
+
                 } catch (captionError) {
                     console.error(`[GENERATE] Captions failed for product ${product.id}, using fallback`, captionError);
                     // generatePlatformCaptions already returns a fallback in dev, but here we provide one for production failure

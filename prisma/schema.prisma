@@ -25,9 +25,12 @@ model Campaign {
   description      String?
   logo_url         String?
   status           String           @default("draft") // draft, processing, completed, failed
+  tone             String           @default("Luxury")
+
   created_at       DateTime         @default(now())
   products         Product[]
   composite_images CompositeImage[]
+
 
   @@index([status])
   @@map("campaigns")

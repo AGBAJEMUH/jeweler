@@ -9,7 +9,10 @@ export default function CreateCampaignPage() {
     // Campaign Details
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
+    const [tone, setTone] = useState('Luxury');
     const [logoFile, setLogoFile] = useState<File | null>(null);
+
+    const TONES = ['Luxury', 'Trendy', 'Minimal', 'Bold'];
 
     // Products
     const [products, setProducts] = useState([{ id: Date.now(), name: '', price: '', desc: '', file: null as File | null }]);
@@ -49,6 +52,7 @@ export default function CreateCampaignPage() {
 
             const productsData = products.map(p => ({ name: p.name, price: p.price, desc: p.desc }));
             formData.append('productsData', JSON.stringify(productsData));
+            formData.append('tone', tone);
 
             products.forEach((p, index) => {
                 if (p.file) formData.append(`productFile_${index}`, p.file);
@@ -116,6 +120,24 @@ export default function CreateCampaignPage() {
                                 rows={3}
                                 className="w-full px-4 py-2 border border-(--border) rounded focus:ring-1 focus:ring-(--gold) focus:border-(--gold) outline-none"
                             />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Brand Tone & Visual Style</label>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                {TONES.map(t => (
+                                    <button
+                                        key={t}
+                                        type="button"
+                                        onClick={() => setTone(t)}
+                                        className={`py-3 px-2 rounded border-2 transition-all duration-200 font-bold text-xs uppercase tracking-wider ${tone === t
+                                            ? 'bg-(--gold) border-(--gold) text-(--foreground) shadow-sm'
+                                            : 'bg-white border-(--border) text-gray-400 hover:border-gray-200'
+                                            }`}
+                                    >
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Brand Logo (Optional for Watermarks)</label>
